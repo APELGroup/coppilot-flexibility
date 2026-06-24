@@ -1,0 +1,137 @@
+{{- if .Values.crate.enabled }}
+{{- /* PersistentVolume for CrateDB */ -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: crate-db-pv
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: {{ .Values.crate.storage }}
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: openebs-hostpath
+  volumeMode: Filesystem
+  hostPath:
+    path: /data/crate-db
+---
+{{- /* PersistentVolumeClaim for CrateDB */ -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: crate-db-pvc
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.crate.storage }}
+  storageClassName: openebs-hostpath
+---
+{{- /* Service for CrateDB */ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: crate-db-client
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+spec:
+  type: NodePort
+  selector:
+    app: crate-db
+  ports:
+    - name: http
+      protocol: TCP
+      port: 4200
+      targetPort: 4200
+      nodePort: {{ .Values.crate.nodePort }}
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+{{- /* StatefulSet for CrateDB */ -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: crate-db
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+  labels:
+    app: crate-db
+spec:
+  serviceName: "crate-db"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crate-db
+  template:
+    metadata:
+      labels:
+        app: crate-db
+    spec:
+      initContainers:
+      - name: init-sysctl
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      containers:
+      - name: crate-db
+        image: crate:4.1.4
+        ports:
+        - containerPort: 4200
+          name: crate-web
+        - containerPort: 4300
+          name: crate-internal
+        - containerPort: 5432
+          name: crate-postgres
+        args:
+        - crate
+        - -Cauth.host_based.enabled=false
+        - -Chttp.cors.enabled=true
+        - -Chttp.cors.allow-origin=*
+        - -Cnode.name=${POD_NAME}
+        - -Ccluster.name=my-crate-cluster
+        - -Cpath.data=/data
+        - -Cnetwork.host=0.0.0.0
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CRATE_SINGLE_NODE
+          value: "1"
+        - name: CRATE_HEAP_SIZE
+          value: "256m" # Explicitly set to Java-compatible format
+        resources:
+          requests:
+            memory: {{ .Values.crate.memoryRequest }}
+          limits:
+            memory: {{ .Values.crate.memoryLimit }}
+        volumeMounts:
+        - mountPath: /data
+          name: crate-db-storage
+  volumeClaimTemplates:
+  - metadata:
+      name: crate-db-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.crate.storage }}
+{{- end }}

@@ -1,0 +1,56 @@
+{{- if .Values.quantumLeap.enabled }}
+{{- /* Deployment for QuantumLeap */ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quantum-leap
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+  labels:
+    app: quantum-leap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quantum-leap
+  template:
+    metadata:
+      labels:
+        app: quantum-leap
+    spec:
+      containers:
+      - name: quantum-leap
+        image: orchestracities/quantumleap:latest
+        ports:
+        - containerPort: 8668
+        env:
+        - name: CRATE_HOST
+          value: "http://crate-db-client"
+        - name: CRATE_PORT
+          value: "4200"
+        - name: LOGLEVEL
+          value: "DEBUG"
+        resources:
+          requests:
+            memory: {{ .Values.quantumLeap.memoryRequest }}
+          limits:
+            memory: {{ .Values.quantumLeap.memoryLimit }}
+---
+{{- /* Service for QuantumLeap */ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: quantum-leap
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    app: quantum-leap
+  ports:
+  - protocol: TCP
+    port: 8668
+    targetPort: 8668
+{{- end }}

@@ -1,0 +1,48 @@
+# Default values for the FIWARE Helm chart.
+# These values can be overridden during installation.
+
+# Kubernetes namespace to deploy to.
+# Leave EMPTY ("") to inherit the namespace from `helm install -n <ns>`,
+# so the chart can run in any namespace without editing values.
+# Set an explicit value only if you want to pin it.
+namespace: ""
+
+# -----------------------------------------------------------------------------
+# Active components
+# -----------------------------------------------------------------------------
+
+mongo:
+  enabled: true
+  storage: 10Gi
+  memoryLimit: 512Mi
+  memoryRequest: 256Mi
+
+orion:
+  enabled: true
+  nodePort: 30897
+  memoryLimit: 256Mi
+  memoryRequest: 128Mi
+
+crate:
+  enabled: true
+  nodePort: 30420
+  storage: 10Gi
+  memoryLimit: 1Gi # Increased to avoid OOMKilled
+  memoryRequest: 128Mi
+
+quantumLeap:
+  enabled: true
+  memoryLimit: 256Mi
+  memoryRequest: 128Mi
+
+# -----------------------------------------------------------------------------
+# Optional components — DISABLED placeholders.
+# Config kept here so it does not need to be reconstructed from scratch.
+# To re-enable: set enabled: true AND restore the matching template file.
+# -----------------------------------------------------------------------------
+
+iotAgent:
+  enabled: false
+  northboundNodePort: 30061
+  httpNodePort: 30096
+  replicas: 1
