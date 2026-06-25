@@ -1,0 +1,76 @@
+{{- if and .Values.orion.enabled .Values.orion.federation.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: orion-subscription-register
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 120
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: register-subscriptions
+        image: curlimages/curl:8.6.0
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          # Target Orion where the subscription will be REGISTERED.
+          # This is the EDGE (Jetson) Orion — the cloud reaches it here and
+          # installs a subscription that makes the edge push to the cloud.
+          ORION="http://{{ .Values.orion.federation.targetHost }}:{{ .Values.orion.federation.targetPort }}"
+
+          echo "Waiting for target Orion ($ORION) to be ready..."
+          until curl -sf "$ORION/version" > /dev/null; do
+            sleep 3
+          done
+          echo "Target Orion is ready."
+
+          register_subscription() {
+            DESCRIPTION="$1"
+            FILE="$2"
+
+            # Check if a subscription with this exact description already exists
+            EXISTING=$(curl -sf \
+              -H "fiware-service: energy" \
+              -H "fiware-servicepath: /" \
+              "$ORION/v2/subscriptions" | grep -c "\"$DESCRIPTION\"" || true)
+
+            if [ "$EXISTING" -gt 0 ]; then
+              echo "Subscription '$DESCRIPTION' already exists, skipping."
+            else
+              echo "Registering subscription '$DESCRIPTION'..."
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                -H "Content-Type: application/json" \
+                -H "fiware-service: energy" \
+                -H "fiware-servicepath: /" \
+                "$ORION/v2/subscriptions" \
+                -d @"$FILE")
+              if [ "$HTTP_CODE" = "201" ]; then
+                echo "Subscription '$DESCRIPTION' registered successfully."
+              else
+                echo "ERROR: Failed to register subscription '$DESCRIPTION' (HTTP $HTTP_CODE)"
+                exit 1
+              fi
+            fi
+          }
+
+          register_subscription "Push ACMeasurement to cloud Orion via Ziti" /etc/orion-subscriptions/federation-subscription.json
+
+          echo "All subscriptions are in place."
+        volumeMounts:
+        - name: subscription-config
+          mountPath: /etc/orion-subscriptions
+      volumes:
+      - name: subscription-config
+        configMap:
+          name: orion-subscription-config
+{{- end }}

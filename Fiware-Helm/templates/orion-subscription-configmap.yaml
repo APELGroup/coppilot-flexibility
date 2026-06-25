@@ -1,0 +1,35 @@
+{{- if and .Values.orion.enabled .Values.orion.federation.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orion-subscription-config
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+data:
+  federation-subscription.json: |
+    {
+      "description": "Push ACMeasurement to cloud Orion via Ziti",
+      "subject": {
+        "entities": [
+          {
+            "idPattern": ".*",
+            "type": "ACMeasurement"
+          }
+        ],
+        "condition": {
+          "attrs": []
+        }
+      },
+      "notification": {
+        "attrs": [],
+        "http": {
+          "url": "http://{{ .Values.orion.federation.host }}:{{ .Values.orion.federation.port }}/v2/op/notify"
+        },
+        "metadata": ["dateCreated", "dateModified"]
+      }
+      {{- if gt (int .Values.orion.federation.throttling) 0 }},
+      "throttling": {{ .Values.orion.federation.throttling }}
+      {{- end }}
+    }
+{{- end }}
