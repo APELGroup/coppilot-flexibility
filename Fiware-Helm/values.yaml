@@ -4,7 +4,6 @@
 # Kubernetes namespace to deploy to.
 # Leave EMPTY ("") to inherit the namespace from `helm install -n <ns>`,
 # so the chart can run in any namespace without editing values.
-# Set an explicit value only if you want to pin it.
 namespace: ""
 
 # -----------------------------------------------------------------------------
@@ -22,6 +21,25 @@ orion:
   nodePort: 30897
   memoryLimit: 256Mi
   memoryRequest: 128Mi
+
+  # Federation: the cloud registers a subscription ON the edge Orion, so the
+  # edge pushes ACMeasurement entities to the cloud.
+  #
+  #   targetHost/targetPort -> the EDGE (Jetson) Orion where the subscription
+  #                            is REGISTERED (the Job POSTs here).
+  #   host/port             -> the CLOUD Orion the notifications are SENT TO
+  #                            (goes into the subscription's notification url).
+  federation:
+    enabled: false
+    # Where the subscription is registered (the edge/Jetson Orion).
+    # Use the Ziti address if the cloud reaches the edge via Ziti,
+    # or 192.168.2.23:30897 if it is directly routable.
+    targetHost: orion-cb-jetson-1.ziti
+    targetPort: 1026
+    # Where notifications are delivered (the central/cloud Orion).
+    host: federation-orion.ziti
+    port: 1026
+    throttling: 1   # min seconds between notifications (0 = no throttling)
 
 crate:
   enabled: true
