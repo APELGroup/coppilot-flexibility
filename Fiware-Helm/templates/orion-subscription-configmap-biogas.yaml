@@ -1,0 +1,65 @@
+{{- if and .Values.orion.enabled .Values.orion.biogasFederation.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orion-subscription-config-biogas
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+data:
+  federation-subscription.json: |
+    {
+      "description": "Push {{ join "," .Values.orion.biogasFederation.entityTypes }} to cloud Orion via Ziti - bpo",
+      "subject": {
+        "entities": [
+          {{- range $i, $t := .Values.orion.biogasFederation.entityTypes }}
+          {{- if $i }},{{ end }}
+          {
+            "idPattern": ".*",
+            "type": "{{ $t }}"
+          }
+          {{- end }}
+        ],
+        "condition": {
+          "attrs": []
+        }
+      },
+      "notification": {
+        "attrs": [],
+        "http": {
+          "url": "http://{{ .Values.orion.biogasFederation.host }}:{{ .Values.orion.biogasFederation.port }}/v2/op/notify"
+        },
+        "metadata": ["dateCreated", "dateModified"]
+      }
+      {{- if gt (int .Values.orion.biogasFederation.throttling) 0 }},
+      "throttling": {{ .Values.orion.biogasFederation.throttling }}
+      {{- end }}
+    }
+  {{- if .Values.quantumLeap.enabled }}
+  cloud-quantumleap-subscription.json: |
+    {
+      "description": "Persist federated {{ join "," .Values.orion.biogasFederation.entityTypes }} to CrateDB via QuantumLeap - bpo",
+      "subject": {
+        "entities": [
+          {{- range $i, $t := .Values.orion.biogasFederation.entityTypes }}
+          {{- if $i }},{{ end }}
+          {
+            "idPattern": ".*",
+            "type": "{{ $t }}"
+          }
+          {{- end }}
+        ],
+        "condition": {
+          "attrs": []
+        }
+      },
+      "notification": {
+        "attrs": [],
+        "http": {
+          "url": "http://quantum-leap:8668/v2/notify"
+        },
+        "metadata": ["dateCreated", "dateModified"]
+      }
+    }
+  {{- end }}
+{{- end }}
