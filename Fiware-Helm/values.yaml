@@ -22,24 +22,44 @@ orion:
   memoryLimit: 256Mi
   memoryRequest: 128Mi
 
-  # Federation: the cloud registers a subscription ON the edge Orion, so the
-  # edge pushes ACMeasurement entities to the cloud.
-  #
-  #   targetHost/targetPort -> the EDGE (Jetson) Orion where the subscription
-  #                            is REGISTERED (the Job POSTs here).
-  #   host/port             -> the CLOUD Orion the notifications are SENT TO
-  #                            (goes into the subscription's notification url).
+  # Federation (energy / Jetson-1 edge): the cloud registers a subscription
+  # ON the edge Orion, so the edge pushes ACMeasurement entities to the
+  # cloud, plus a matching local subscription on the cloud Orion (this
+  # cluster) to persist into CrateDB via QuantumLeap.
+  # Registered by its own Job — see templates/orion-subscription-job.yaml.
   federation:
-    enabled: false
+    enabled: true
     # Where the subscription is registered (the edge/Jetson Orion).
     # Use the Ziti address if the cloud reaches the edge via Ziti,
     # or 192.168.2.23:30897 if it is directly routable.
     targetHost: orion-cb-jetson-1.ziti
     targetPort: 1026
+    fiwareService: energy
+    fiwareServicePath: /
+    entityTypes:
+      - ACMeasurement
     # Where notifications are delivered (the central/cloud Orion).
     host: federation-orion.ziti
     port: 1026
-    throttling: 1   # min seconds between notifications (0 = no throttling)
+    throttling: 0   # min seconds between notifications (0 = no throttling)
+
+  # Federation (BPO / biogas): separate from the energy federation above so
+  # the two don't get mixed up — its own values block, ConfigMap, and Job
+  # (templates/orion-subscription-job-biogas.yaml). Pushes Digester/CHPUnit
+  # entities from the BPO Orion to the cloud under the "bpo" / "/v1"
+  # service scope.
+  biogasFederation:
+    enabled: true
+    targetHost: orion-cb-jetson.ziti
+    targetPort: 1026
+    fiwareService: bpo
+    fiwareServicePath: /v1
+    entityTypes:
+      - Digester
+      - CHPUnit
+    host: federation-orion.ziti
+    port: 1026
+    throttling: 0
 
 crate:
   enabled: true
