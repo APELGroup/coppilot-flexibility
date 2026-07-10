@@ -1,25 +1,5 @@
 {{- if .Values.mongo.enabled }}
-{{- /* PersistentVolume for MongoDB */ -}}
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: mongo-pv
-  {{- if .Values.namespace }}
-  namespace: {{ .Values.namespace }}
-  {{- end }}
-  labels:
-    type: local
-spec:
-  capacity:
-    storage: {{ .Values.mongo.storage }}
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: openebs-hostpath
-  volumeMode: Filesystem
-  hostPath:
-    path: /data/mongo
----
-{{- /* PersistentVolumeClaim for MongoDB */ -}}
+{{- /* PersistentVolumeClaim for MongoDB - dynamically provisioned by the openebs-hostpath CSI driver */ -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
