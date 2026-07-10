@@ -1,40 +1,4 @@
 {{- if .Values.crate.enabled }}
-{{- /* PersistentVolume for CrateDB */ -}}
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: crate-db-pv
-  {{- if .Values.namespace }}
-  namespace: {{ .Values.namespace }}
-  {{- end }}
-  labels:
-    type: local
-spec:
-  capacity:
-    storage: {{ .Values.crate.storage }}
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: openebs-hostpath
-  volumeMode: Filesystem
-  hostPath:
-    path: /data/crate-db
----
-{{- /* PersistentVolumeClaim for CrateDB */ -}}
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: crate-db-pvc
-  {{- if .Values.namespace }}
-  namespace: {{ .Values.namespace }}
-  {{- end }}
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: {{ .Values.crate.storage }}
-  storageClassName: openebs-hostpath
----
 {{- /* Service for CrateDB */ -}}
 apiVersion: v1
 kind: Service
@@ -71,6 +35,9 @@ metadata:
 spec:
   serviceName: "crate-db"
   replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Retain
   selector:
     matchLabels:
       app: crate-db
@@ -88,7 +55,7 @@ spec:
           privileged: true
       containers:
       - name: crate-db
-        image: crate:4.1.4
+        image: crate:4.6.7
         ports:
         - containerPort: 4200
           name: crate-web
@@ -131,6 +98,7 @@ spec:
       name: crate-db-storage
     spec:
       accessModes: [ "ReadWriteOnce" ]
+      storageClassName: openebs-hostpath
       resources:
         requests:
           storage: {{ .Values.crate.storage }}
