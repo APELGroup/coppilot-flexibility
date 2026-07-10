@@ -9,13 +9,16 @@ metadata:
 data:
   federation-subscription.json: |
     {
-      "description": "Push ACMeasurement to cloud Orion via Ziti",
+      "description": "Push {{ join "," .Values.orion.federation.entityTypes }} to cloud Orion via Ziti - jetson-1",
       "subject": {
         "entities": [
+          {{- range $i, $t := .Values.orion.federation.entityTypes }}
+          {{- if $i }},{{ end }}
           {
             "idPattern": ".*",
-            "type": "ACMeasurement"
+            "type": "{{ $t }}"
           }
+          {{- end }}
         ],
         "condition": {
           "attrs": []
@@ -32,4 +35,31 @@ data:
       "throttling": {{ .Values.orion.federation.throttling }}
       {{- end }}
     }
+  {{- if .Values.quantumLeap.enabled }}
+  cloud-quantumleap-subscription.json: |
+    {
+      "description": "Persist federated {{ join "," .Values.orion.federation.entityTypes }} to CrateDB via QuantumLeap - jetson-1",
+      "subject": {
+        "entities": [
+          {{- range $i, $t := .Values.orion.federation.entityTypes }}
+          {{- if $i }},{{ end }}
+          {
+            "idPattern": ".*",
+            "type": "{{ $t }}"
+          }
+          {{- end }}
+        ],
+        "condition": {
+          "attrs": []
+        }
+      },
+      "notification": {
+        "attrs": [],
+        "http": {
+          "url": "http://quantum-leap:8668/v2/notify"
+        },
+        "metadata": ["dateCreated", "dateModified"]
+      }
+    }
+  {{- end }}
 {{- end }}
