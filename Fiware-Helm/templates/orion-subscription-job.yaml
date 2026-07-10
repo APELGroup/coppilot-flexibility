@@ -11,6 +11,7 @@ metadata:
     "helm.sh/hook-weight": "5"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
+  backoffLimit: 10
   ttlSecondsAfterFinished: 120
   template:
     spec:
@@ -23,6 +24,44 @@ spec:
         - -c
         - |
           set -e
+          SVC="{{ .Values.orion.federation.fiwareService }}"
+          SVCPATH="{{ .Values.orion.federation.fiwareServicePath }}"
+
+          register_subscription() {
+            TARGET="$1"
+            DESCRIPTION="$2"
+            FILE="$3"
+
+            # Check if a subscription with this exact description already exists.
+            # Fetch and grep as separate steps (not a pipeline) so a failed
+            # curl aborts the script via `set -e` instead of silently
+            # producing an empty EXISTING, which would otherwise be read as
+            # "no existing subscription" and register a duplicate.
+            SUBSCRIPTIONS=$(curl -sf \
+              -H "fiware-service: $SVC" \
+              -H "fiware-servicepath: $SVCPATH" \
+              "$TARGET/v2/subscriptions")
+            EXISTING=$(printf '%s' "$SUBSCRIPTIONS" | grep -c "\"$DESCRIPTION\"" || true)
+
+            if [ "$EXISTING" -gt 0 ]; then
+              echo "Subscription '$DESCRIPTION' already exists, skipping."
+            else
+              echo "Registering subscription '$DESCRIPTION'..."
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                -H "Content-Type: application/json" \
+                -H "fiware-service: $SVC" \
+                -H "fiware-servicepath: $SVCPATH" \
+                "$TARGET/v2/subscriptions" \
+                -d @"$FILE")
+              if [ "$HTTP_CODE" = "201" ]; then
+                echo "Subscription '$DESCRIPTION' registered successfully."
+              else
+                echo "ERROR: Failed to register subscription '$DESCRIPTION' (HTTP $HTTP_CODE)"
+                exit 1
+              fi
+            fi
+          }
+
           # Target Orion where the subscription will be REGISTERED.
           # This is the EDGE (Jetson) Orion — the cloud reaches it here and
           # installs a subscription that makes the edge push to the cloud.
@@ -34,36 +73,18 @@ spec:
           done
           echo "Target Orion is ready."
 
-          register_subscription() {
-            DESCRIPTION="$1"
-            FILE="$2"
+          register_subscription "$ORION" \
+            "Push {{ join "," .Values.orion.federation.entityTypes }} to cloud Orion via Ziti - jetson-1" \
+            /etc/orion-subscriptions/federation-subscription.json
 
-            # Check if a subscription with this exact description already exists
-            EXISTING=$(curl -sf \
-              -H "fiware-service: energy" \
-              -H "fiware-servicepath: /" \
-              "$ORION/v2/subscriptions" | grep -c "\"$DESCRIPTION\"" || true)
-
-            if [ "$EXISTING" -gt 0 ]; then
-              echo "Subscription '$DESCRIPTION' already exists, skipping."
-            else
-              echo "Registering subscription '$DESCRIPTION'..."
-              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-                -H "Content-Type: application/json" \
-                -H "fiware-service: energy" \
-                -H "fiware-servicepath: /" \
-                "$ORION/v2/subscriptions" \
-                -d @"$FILE")
-              if [ "$HTTP_CODE" = "201" ]; then
-                echo "Subscription '$DESCRIPTION' registered successfully."
-              else
-                echo "ERROR: Failed to register subscription '$DESCRIPTION' (HTTP $HTTP_CODE)"
-                exit 1
-              fi
-            fi
-          }
-
-          register_subscription "Push ACMeasurement to cloud Orion via Ziti" /etc/orion-subscriptions/federation-subscription.json
+          {{- if .Values.quantumLeap.enabled }}
+          # Local Orion (this cluster) -> local QuantumLeap, to persist the
+          # federated entities into CrateDB.
+          LOCAL_ORION="http://orion-cb:1026"
+          register_subscription "$LOCAL_ORION" \
+            "Persist federated {{ join "," .Values.orion.federation.entityTypes }} to CrateDB via QuantumLeap - jetson-1" \
+            /etc/orion-subscriptions/cloud-quantumleap-subscription.json
+          {{- end }}
 
           echo "All subscriptions are in place."
         volumeMounts:
