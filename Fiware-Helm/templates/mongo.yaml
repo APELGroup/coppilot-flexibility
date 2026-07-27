@@ -1,0 +1,91 @@
+{{- if .Values.mongo.enabled }}
+{{- /* PersistentVolumeClaim for MongoDB - dynamically provisioned by the openebs-hostpath CSI driver */ -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.mongo.storage }}
+  storageClassName: openebs-hostpath
+---
+{{/* Deployment for MongoDB */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+  labels:
+    app: mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+      - name: mongo
+        image: mongo:5.0
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: mongo-storage
+          mountPath: /data/db
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: "orion"
+        resources:
+          requests:
+            memory: {{ .Values.mongo.memoryRequest }}
+          limits:
+            memory: {{ .Values.mongo.memoryLimit }}
+        livenessProbe:
+          exec:
+            command:
+            - mongo
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - mongo
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: mongo-storage
+        persistentVolumeClaim:
+          claimName: mongo-pvc
+---
+{{/* Service for MongoDB */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+spec:
+  selector:
+    app: mongo
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    port: 27017
+    targetPort: 27017
+{{- end }}

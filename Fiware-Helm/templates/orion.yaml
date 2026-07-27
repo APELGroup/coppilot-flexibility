@@ -1,0 +1,73 @@
+{{- if .Values.orion.enabled }}
+{{- /* Deployment for Orion Context Broker */ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orion-cb
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+  labels:
+    app: orion-cb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orion-cb
+  template:
+    metadata:
+      labels:
+        app: orion-cb
+    spec:
+      initContainers:
+      - name: wait-for-mongo
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Waiting for MongoDB..."
+          until nc -z mongo 27017; do
+            echo "MongoDB not ready, waiting 5 seconds..."
+            sleep 5
+          done
+          echo "MongoDB is ready! Starting Orion..."
+      containers:
+      - name: orion-cb
+        image: fiware/orion:latest
+        ports:
+        - containerPort: 1026
+        command: ["/usr/bin/contextBroker"]
+        args:
+        - "-fg"
+        - "-multiservice"
+        - "-corsOrigin"
+        - "__ALL"
+        - "-logLevel"
+        - "INFO"
+        - "-dbURI"
+        - "mongodb://mongo:27017"
+        - "-db"
+        - "orion"
+        resources:
+          requests:
+            memory: {{ .Values.orion.memoryRequest }}
+          limits:
+            memory: {{ .Values.orion.memoryLimit }}
+---
+{{/* Service for Orion Context Broker */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: orion-cb
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+spec:
+  type: NodePort
+  ports:
+  - port: 1026
+    targetPort: 1026
+    nodePort: {{ .Values.orion.nodePort }}
+  selector:
+    app: orion-cb
+{{- end }}

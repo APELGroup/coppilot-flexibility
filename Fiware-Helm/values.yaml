@@ -1,0 +1,86 @@
+# Default values for the FIWARE Helm chart.
+# These values can be overridden during installation.
+
+# Kubernetes namespace to deploy to.
+# Leave EMPTY ("") to inherit the namespace from `helm install -n <ns>`,
+# so the chart can run in any namespace without editing values.
+namespace: ""
+
+# -----------------------------------------------------------------------------
+# Active components
+# -----------------------------------------------------------------------------
+
+mongo:
+  enabled: true
+  storage: 10Gi
+  memoryLimit: 512Mi
+  memoryRequest: 256Mi
+
+orion:
+  enabled: true
+  nodePort: 30897
+  memoryLimit: 256Mi
+  memoryRequest: 128Mi
+
+  # Federation (energy / Jetson-1 edge): the cloud registers a subscription
+  # ON the edge Orion, so the edge pushes ACMeasurement entities to the
+  # cloud, plus a matching local subscription on the cloud Orion (this
+  # cluster) to persist into CrateDB via QuantumLeap.
+  # Registered by its own Job — see templates/orion-subscription-job.yaml.
+  federation:
+    enabled: true
+    # Where the subscription is registered (the edge/Jetson Orion).
+    # Use the Ziti address if the cloud reaches the edge via Ziti,
+    # or 192.168.2.23:30897 if it is directly routable.
+    targetHost: orion-cb-jetson-1.ziti
+    targetPort: 1026
+    fiwareService: energy
+    fiwareServicePath: /
+    entityTypes:
+      - ACMeasurement
+    # Where notifications are delivered (the central/cloud Orion).
+    host: federation-orion.ziti
+    port: 1026
+    throttling: 0   # min seconds between notifications (0 = no throttling)
+
+  # Federation (BPO / biogas): separate from the energy federation above so
+  # the two don't get mixed up — its own values block, ConfigMap, and Job
+  # (templates/orion-subscription-job-biogas.yaml). Pushes Digester/CHPUnit
+  # entities from the BPO Orion to the cloud under the "bpo" / "/v1"
+  # service scope.
+  biogasFederation:
+    enabled: true
+    targetHost: orion-cb-jetson.ziti
+    targetPort: 1026
+    fiwareService: bpo
+    fiwareServicePath: /v1
+    entityTypes:
+      - Digester
+      - CHPUnit
+    host: federation-orion.ziti
+    port: 1026
+    throttling: 0
+
+crate:
+  enabled: true
+  nodePort: 30420
+  storage: 10Gi
+  memoryLimit: 1Gi # Increased to avoid OOMKilled
+  memoryRequest: 128Mi
+
+quantumLeap:
+  enabled: true
+  memoryLimit: 256Mi
+  memoryRequest: 128Mi
+
+# -----------------------------------------------------------------------------
+# Optional components — DISABLED placeholders.
+# Config kept here so it does not need to be reconstructed from scratch.
+# To re-enable: set enabled: true AND restore the matching template file.
+# -----------------------------------------------------------------------------
+
+iotAgent:
+  enabled: false
+  northboundNodePort: 30061
+  httpNodePort: 30096
+  replicas: 1

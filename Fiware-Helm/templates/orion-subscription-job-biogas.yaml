@@ -1,0 +1,103 @@
+{{- if and .Values.orion.enabled .Values.orion.biogasFederation.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: orion-subscription-register-biogas
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 120
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: register-subscriptions
+        image: curlimages/curl:8.6.0
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          SVC="{{ .Values.orion.biogasFederation.fiwareService }}"
+          SVCPATH="{{ .Values.orion.biogasFederation.fiwareServicePath }}"
+
+          register_subscription() {
+            TARGET="$1"
+            DESCRIPTION="$2"
+            FILE="$3"
+
+            # Check if a subscription with this exact description already exists.
+            # Fetch and grep as separate steps (not a pipeline) so a failed
+            # curl aborts the script via `set -e` instead of silently
+            # producing an empty EXISTING, which would otherwise be read as
+            # "no existing subscription" and register a duplicate.
+            SUBSCRIPTIONS=$(curl -sf \
+              -H "fiware-service: $SVC" \
+              -H "fiware-servicepath: $SVCPATH" \
+              "$TARGET/v2/subscriptions")
+            EXISTING=$(printf '%s' "$SUBSCRIPTIONS" | grep -c "\"$DESCRIPTION\"" || true)
+
+            if [ "$EXISTING" -gt 0 ]; then
+              echo "Subscription '$DESCRIPTION' already exists, skipping."
+            else
+              echo "Registering subscription '$DESCRIPTION'..."
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                -H "Content-Type: application/json" \
+                -H "fiware-service: $SVC" \
+                -H "fiware-servicepath: $SVCPATH" \
+                "$TARGET/v2/subscriptions" \
+                -d @"$FILE")
+              if [ "$HTTP_CODE" = "201" ]; then
+                echo "Subscription '$DESCRIPTION' registered successfully."
+              else
+                echo "ERROR: Failed to register subscription '$DESCRIPTION' (HTTP $HTTP_CODE)"
+                exit 1
+              fi
+            fi
+          }
+
+          # Target Orion where the subscription will be REGISTERED.
+          # This is the BPO (biogas) Orion — the cloud reaches it here and
+          # installs a subscription that makes it push to the cloud.
+          ORION="http://{{ .Values.orion.biogasFederation.targetHost }}:{{ .Values.orion.biogasFederation.targetPort }}"
+
+          echo "Waiting for target Orion ($ORION) to be ready..."
+          WAIT_ATTEMPTS=0
+          until curl -sf "$ORION/version" > /dev/null; do
+            WAIT_ATTEMPTS=$((WAIT_ATTEMPTS + 1))
+            if [ "$WAIT_ATTEMPTS" -ge 100 ]; then
+              echo "ERROR: Target Orion ($ORION) did not become ready after $((WAIT_ATTEMPTS * 3))s, giving up."
+              exit 1
+            fi
+            sleep 3
+          done
+          echo "Target Orion is ready."
+
+          register_subscription "$ORION" \
+            "Push {{ join "," .Values.orion.biogasFederation.entityTypes }} to cloud Orion via Ziti - bpo" \
+            /etc/orion-subscriptions-biogas/federation-subscription.json
+
+          {{- if .Values.quantumLeap.enabled }}
+          # Local Orion (this cluster) -> local QuantumLeap, to persist the
+          # federated entities into CrateDB.
+          LOCAL_ORION="http://orion-cb:1026"
+          register_subscription "$LOCAL_ORION" \
+            "Persist federated {{ join "," .Values.orion.biogasFederation.entityTypes }} to CrateDB via QuantumLeap - bpo" \
+            /etc/orion-subscriptions-biogas/cloud-quantumleap-subscription.json
+          {{- end }}
+
+          echo "All biogas subscriptions are in place."
+        volumeMounts:
+        - name: subscription-config-biogas
+          mountPath: /etc/orion-subscriptions-biogas
+      volumes:
+      - name: subscription-config-biogas
+        configMap:
+          name: orion-subscription-config-biogas
+{{- end }}

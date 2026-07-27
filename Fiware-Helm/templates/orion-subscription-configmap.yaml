@@ -1,0 +1,65 @@
+{{- if and .Values.orion.enabled .Values.orion.federation.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orion-subscription-config
+  {{- if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+data:
+  federation-subscription.json: |
+    {
+      "description": "Push {{ join "," .Values.orion.federation.entityTypes }} to cloud Orion via Ziti - jetson-1",
+      "subject": {
+        "entities": [
+          {{- range $i, $t := .Values.orion.federation.entityTypes }}
+          {{- if $i }},{{ end }}
+          {
+            "idPattern": ".*",
+            "type": "{{ $t }}"
+          }
+          {{- end }}
+        ],
+        "condition": {
+          "attrs": []
+        }
+      },
+      "notification": {
+        "attrs": [],
+        "http": {
+          "url": "http://{{ .Values.orion.federation.host }}:{{ .Values.orion.federation.port }}/v2/op/notify"
+        },
+        "metadata": ["dateCreated", "dateModified"]
+      }
+      {{- if gt (int .Values.orion.federation.throttling) 0 }},
+      "throttling": {{ .Values.orion.federation.throttling }}
+      {{- end }}
+    }
+  {{- if .Values.quantumLeap.enabled }}
+  cloud-quantumleap-subscription.json: |
+    {
+      "description": "Persist federated {{ join "," .Values.orion.federation.entityTypes }} to CrateDB via QuantumLeap - jetson-1",
+      "subject": {
+        "entities": [
+          {{- range $i, $t := .Values.orion.federation.entityTypes }}
+          {{- if $i }},{{ end }}
+          {
+            "idPattern": ".*",
+            "type": "{{ $t }}"
+          }
+          {{- end }}
+        ],
+        "condition": {
+          "attrs": []
+        }
+      },
+      "notification": {
+        "attrs": [],
+        "http": {
+          "url": "http://quantum-leap:8668/v2/notify"
+        },
+        "metadata": ["dateCreated", "dateModified"]
+      }
+    }
+  {{- end }}
+{{- end }}
