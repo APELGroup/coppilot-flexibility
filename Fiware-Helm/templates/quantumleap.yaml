@@ -19,6 +19,18 @@ spec:
       labels:
         app: quantum-leap
     spec:
+      initContainers:
+      - name: wait-for-crate
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Waiting for CrateDB..."
+          until nc -z crate-db-client 4200; do
+            echo "CrateDB not ready, waiting 5 seconds..."
+            sleep 5
+          done
+          echo "CrateDB is ready! Starting QuantumLeap..."
       containers:
       - name: quantum-leap
         image: orchestracities/quantumleap:latest
@@ -37,7 +49,7 @@ spec:
           limits:
             memory: {{ .Values.quantumLeap.memoryLimit }}
 ---
-{{- /* Service for QuantumLeap */ -}}
+{{/* Service for QuantumLeap */}}
 apiVersion: v1
 kind: Service
 metadata:

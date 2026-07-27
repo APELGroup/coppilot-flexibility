@@ -15,7 +15,7 @@ spec:
       storage: {{ .Values.mongo.storage }}
   storageClassName: openebs-hostpath
 ---
-{{- /* Deployment for MongoDB */ -}}
+{{/* Deployment for MongoDB */}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -72,7 +72,7 @@ spec:
         persistentVolumeClaim:
           claimName: mongo-pvc
 ---
-{{- /* Service for MongoDB */ -}}
+{{/* Service for MongoDB */}}
 apiVersion: v1
 kind: Service
 metadata:

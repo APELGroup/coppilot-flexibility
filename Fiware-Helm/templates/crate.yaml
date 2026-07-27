@@ -22,7 +22,7 @@ spec:
       port: 5432
       targetPort: 5432
 ---
-{{- /* StatefulSet for CrateDB */ -}}
+{{/* StatefulSet for CrateDB */}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

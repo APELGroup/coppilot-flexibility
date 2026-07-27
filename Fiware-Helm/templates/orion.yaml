@@ -54,7 +54,7 @@ spec:
           limits:
             memory: {{ .Values.orion.memoryLimit }}
 ---
-{{- /* Service for Orion Context Broker */ -}}
+{{/* Service for Orion Context Broker */}}
 apiVersion: v1
 kind: Service
 metadata:

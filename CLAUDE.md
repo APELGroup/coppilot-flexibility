@@ -9,11 +9,11 @@ A single Helm chart (`Fiware-Helm/`) that deploys a FIWARE stack on Kubernetes: 
 ## Commands
 
 ```bash
-# Render templates locally without installing (fastest way to sanity-check a change)
-helm template fiware ./Fiware-Helm
-
 # Lint the chart
 helm lint ./Fiware-Helm
+
+# Render templates locally without installing
+helm template fiware ./Fiware-Helm
 
 # Install / upgrade (namespace inherited from -n since values.yaml namespace is "")
 helm upgrade --install fiware ./Fiware-Helm -n fiware --create-namespace
@@ -22,30 +22,24 @@ helm upgrade --install fiware ./Fiware-Helm -n fiware --create-namespace
 helm upgrade --install fiware ./Fiware-Helm -n fiware -f my-values.yaml
 ```
 
-There are no unit tests, linters, or CI config in this repo — `helm lint` / `helm template` are the only correctness checks available before a real deploy.
+There are no unit tests or CI config in this repo — `helm lint` / `helm template` are the only correctness checks available before a real deploy.
+
+Note: go-template comments (`{{/* ... */}}`) placed immediately after a `---` document separator must **not** use `-` trim markers (i.e. not `{{- /* ... */ -}}`). Trimming there eats the newline between `---` and the next resource's `apiVersion` line, which `helm lint` rejects as an invalid document separator (`helm template` masks it because Helm injects its own `# Source: ...` comment line in between). This bit every multi-resource template in the chart until it was fixed — keep new multi-doc templates consistent with this.
 
 ## Architecture
 
-```
-entities ---> Orion CB <---> MongoDB (persistence)
-                 |  subscription
-                 v
-             QuantumLeap ---> CrateDB (time series)
-```
+See README.md for the full component diagram and table. Points worth knowing that aren't obvious from a single template:
 
-- **Orion** (`templates/orion.yaml`) is the context broker; state is persisted to **MongoDB** (`templates/mongo.yaml`).
-- A subscription on Orion forwards entity changes to **QuantumLeap** (`templates/quantumleap.yaml`), which writes time series into **CrateDB** (`templates/crate.yaml`).
 - Every component is gated by its own `enabled` flag in `values.yaml` and its template's top-level `{{- if .Values.X.enabled }}`.
+- The Orion → QuantumLeap subscription (writing entities into CrateDB) is **not** standing infrastructure — it only gets created as a side effect of a federation Job (see below), guarded by `quantumLeap.enabled`. With both `orion.federation.enabled` and `orion.biogasFederation.enabled` false, nothing subscribes QuantumLeap to Orion and entities written directly to Orion never reach CrateDB.
 - `iotAgent` is a disabled placeholder: values are kept in `values.yaml` but the matching template was removed. Re-enabling it means restoring a template, not just flipping the flag.
 
 ### Federation
 
-Two **independent** federation setups exist, each registering subscriptions on a remote (edge) Orion so it pushes entities to this cloud cluster over Ziti:
+Two **independent** federation setups exist (entity types, fiware-service/path, and target host differ — see README.md), each registering subscriptions on a remote (edge) Orion so it pushes entities to this cloud cluster over Ziti:
 
 | | Energy / Jetson-1 | BPO / Biogas |
 |---|---|---|
-| entity types | `ACMeasurement` | `Digester`, `CHPUnit` |
-| fiware-service / path | `energy` / `/` | `bpo` / `/v1` |
 | values block | `orion.federation` | `orion.biogasFederation` |
 | ConfigMap | `orion-subscription-configmap.yaml` | `orion-subscription-configmap-biogas.yaml` |
 | Job | `orion-subscription-job.yaml` | `orion-subscription-job-biogas.yaml` |

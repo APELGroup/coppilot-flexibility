@@ -68,7 +68,13 @@ spec:
           ORION="http://{{ .Values.orion.biogasFederation.targetHost }}:{{ .Values.orion.biogasFederation.targetPort }}"
 
           echo "Waiting for target Orion ($ORION) to be ready..."
+          WAIT_ATTEMPTS=0
           until curl -sf "$ORION/version" > /dev/null; do
+            WAIT_ATTEMPTS=$((WAIT_ATTEMPTS + 1))
+            if [ "$WAIT_ATTEMPTS" -ge 100 ]; then
+              echo "ERROR: Target Orion ($ORION) did not become ready after $((WAIT_ATTEMPTS * 3))s, giving up."
+              exit 1
+            fi
             sleep 3
           done
           echo "Target Orion is ready."
