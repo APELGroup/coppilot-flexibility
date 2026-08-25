@@ -43,7 +43,7 @@ spec:
         - "-corsOrigin"
         - "__ALL"
         - "-logLevel"
-        - "INFO"
+        - "WARN"
         - "-dbURI"
         - "mongodb://mongo:27017"
         - "-db"
