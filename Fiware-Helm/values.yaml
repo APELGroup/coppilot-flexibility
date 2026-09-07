@@ -65,8 +65,9 @@ crate:
   enabled: true
   nodePort: 30420
   storage: 10Gi
-  memoryLimit: 1Gi # Increased to avoid OOMKilled
-  memoryRequest: 128Mi
+  memoryLimit: 2Gi # Increased to avoid jobs_log/operations_log circuit breaker trips under load
+  memoryRequest: 512Mi
+  heapSize: 1024m # ~50% of memoryLimit per CrateDB heap sizing guidance
 
 quantumLeap:
   enabled: true
