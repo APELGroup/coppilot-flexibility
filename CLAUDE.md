@@ -4,22 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A single Helm chart (`Fiware-Helm/`) that deploys a FIWARE stack on Kubernetes: Orion Context Broker, MongoDB, CrateDB, and QuantumLeap, plus optional cross-cluster federation between an edge (Jetson) Orion and a cloud Orion over Ziti. There is no application source code — this repo *is* the chart.
+A single Helm chart (`orion-fed-helm/`) that deploys a FIWARE stack on Kubernetes: Orion Context Broker, MongoDB, CrateDB, and QuantumLeap, plus optional cross-cluster federation between an edge (Jetson) Orion and a cloud Orion over Ziti. There is no application source code — this repo *is* the chart.
 
 ## Commands
 
 ```bash
 # Lint the chart
-helm lint ./Fiware-Helm
+helm lint ./orion-fed-helm
 
 # Render templates locally without installing
-helm template fiware ./Fiware-Helm
+helm template orion-fed ./orion-fed-helm
 
 # Install / upgrade (namespace inherited from -n since values.yaml namespace is "")
-helm upgrade --install fiware ./Fiware-Helm -n fiware --create-namespace
+helm upgrade --install orion-fed ./orion-fed-helm -n orion-fed --create-namespace
 
 # With overrides
-helm upgrade --install fiware ./Fiware-Helm -n fiware -f my-values.yaml
+helm upgrade --install orion-fed ./orion-fed-helm -n orion-fed -f my-values.yaml
 ```
 
 There are no unit tests or CI config in this repo — `helm lint` / `helm template` are the only correctness checks available before a real deploy.

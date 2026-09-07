@@ -1,4 +1,4 @@
-# Fiware-Helm
+# orion-fed-helm
 
 A Helm chart for deploying a stack of core **FIWARE** components on Kubernetes: **Orion Context Broker**, **MongoDB**, **CrateDB**, and **QuantumLeap**. It also supports **federation** subscriptions between edge (Jetson) and cloud Orion instances over Ziti.
 
@@ -34,7 +34,7 @@ A Helm chart for deploying a stack of core **FIWARE** components on Kubernetes: 
 | `quantumLeap` | Translates NGSI notifications into time series in Crate  | `orchestracities/quantumleap:latest` |
 | `iotAgent`    | (optional, **disabled** by default)                       | -                              |
 
-Each component can be enabled/disabled independently via its `enabled` flag in [`values.yaml`](Fiware-Helm/values.yaml).
+Each component can be enabled/disabled independently via its `enabled` flag in [`values.yaml`](orion-fed-helm/values.yaml).
 
 ## Federation
 
@@ -44,13 +44,13 @@ The chart supports **two independent federation setups**, each with its own Conf
 - Entities: `ACMeasurement`
 - Fiware service: `energy` (path `/`)
 - The cloud registers a subscription **on the edge Orion** (`orion.federation.targetHost`), so the edge pushes entities to the cloud Orion.
-- Templates: [`orion-subscription-configmap.yaml`](Fiware-Helm/templates/orion-subscription-configmap.yaml), [`orion-subscription-job.yaml`](Fiware-Helm/templates/orion-subscription-job.yaml)
+- Templates: [`orion-subscription-configmap.yaml`](orion-fed-helm/templates/orion-subscription-configmap.yaml), [`orion-subscription-job.yaml`](orion-fed-helm/templates/orion-subscription-job.yaml)
 
 ### 2. BPO / Biogas
 - Entities: `Digester`, `CHPUnit`
 - Fiware service: `bpo` (path `/v1`)
 - Kept as a separate instance so it doesn't get mixed up with the energy federation.
-- Templates: [`orion-subscription-configmap-biogas.yaml`](Fiware-Helm/templates/orion-subscription-configmap-biogas.yaml), [`orion-subscription-job-biogas.yaml`](Fiware-Helm/templates/orion-subscription-job-biogas.yaml)
+- Templates: [`orion-subscription-configmap-biogas.yaml`](orion-fed-helm/templates/orion-subscription-configmap-biogas.yaml), [`orion-subscription-job-biogas.yaml`](orion-fed-helm/templates/orion-subscription-job-biogas.yaml)
 
 Both Jobs:
 1. Wait for the target (edge) Orion to become ready.
@@ -63,24 +63,24 @@ Enable/disable each independently via `orion.federation.enabled` and `orion.biog
 ## Installation
 
 ```bash
-helm install fiware ./Fiware-Helm -n <namespace> --create-namespace
+helm install orion-fed ./orion-fed-helm -n <namespace> --create-namespace
 ```
 
 Or, leaving `namespace: ""` in `values.yaml`, the chart inherits the namespace from `-n`:
 
 ```bash
-helm upgrade --install fiware ./Fiware-Helm -n fiware --create-namespace
+helm upgrade --install orion-fed ./orion-fed-helm -n orion-fed --create-namespace
 ```
 
 For custom settings, create your own `my-values.yaml` and pass it with `-f`:
 
 ```bash
-helm upgrade --install fiware ./Fiware-Helm -n fiware -f my-values.yaml
+helm upgrade --install orion-fed ./orion-fed-helm -n orion-fed -f my-values.yaml
 ```
 
 ## Configuration
 
-The main parameters live in [`Fiware-Helm/values.yaml`](Fiware-Helm/values.yaml):
+The main parameters live in [`orion-fed-helm/values.yaml`](orion-fed-helm/values.yaml):
 
 ```yaml
 namespace: ""        # Empty = inherited from helm install -n <ns>
@@ -121,7 +121,7 @@ Note: `storageClassName` on the PVC/volumeClaimTemplates is hardcoded to `openeb
 ## Chart layout
 
 ```
-Fiware-Helm/
+orion-fed-helm/
 ├── Chart.yaml
 ├── values.yaml
 └── templates/
