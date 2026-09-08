@@ -27,7 +27,7 @@ spec:
   source:
     repoURL: harbor.cop-pilot.rid-intrasoft.eu
     chart: cluster3e-flexibility/orion-fed
-    targetRevision: "0.1.1"
+    targetRevision: "*" #"0.1.1"
   syncPolicy:
     automated:
       prune: true

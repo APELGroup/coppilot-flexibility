@@ -1,0 +1,47 @@
+name: Package and Push Helm Chart
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "orion-fed-helm/**"
+  workflow_dispatch: {}
+
+env:
+  REGISTRY: harbor.cop-pilot.rid-intrasoft.eu
+  PROJECT: cluster3e-flexibility
+  CHART_DIR: orion-fed-helm
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check if chart version changed
+        id: version
+        run: |
+          CURRENT=$(grep '^version:' "$CHART_DIR/Chart.yaml" | awk '{print $2}')
+          PREV_SHA="${{ github.event.before }}"
+          if [ -z "$PREV_SHA" ] || [ "$PREV_SHA" = "0000000000000000000000000000000000000000" ]; then
+            PREVIOUS=""
+          else
+            PREVIOUS=$(git show "$PREV_SHA:$CHART_DIR/Chart.yaml" 2>/dev/null | grep '^version:' | awk '{print $2}' || true)
+          fi
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: azure/setup-helm@v4
+        if: steps.version.outputs.changed == 'true'
+        with:
+          version: v3.15.4
+      - name: Package and push chart
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          helm registry login "$REGISTRY" -u "${{ secrets.HARBOR_USERNAME }}" -p "${{ secrets.HARBOR_PASSWORD }}"
+          helm package "$CHART_DIR"
+          helm push "orion-fed-${{ steps.version.outputs.current }}.tgz" "oci://$REGISTRY/$PROJECT"
